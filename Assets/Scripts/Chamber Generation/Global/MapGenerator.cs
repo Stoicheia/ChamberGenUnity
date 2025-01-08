@@ -8,32 +8,120 @@ namespace ChamberGen
     public class MapGenerator
     {
         private VectorInt _mapDimensions;
-        private int _minDistance;
-        private int _k;
-
-        public MapGenerator(int mapWidth, int mapHeight, int minDistance, int k)
+        private MapGenConfig _config;
+        private Random _random;
+        
+        private List<ChamberGlobal> _chamberList;
+        private Dictionary<float, List<ExitNodeGlobal>> _angleToPotentialExitNodes;
+        
+        public MapGenerator(MapGenConfig mapGenConfig)
         {
-            _mapDimensions = new VectorInt(mapWidth, mapHeight);
+            _config = mapGenConfig;
+            _mapDimensions = new VectorInt(_config.Width, _config.Height);
+            _random = mapGenConfig.Random;
+        }
+
+        public void Init()
+        {
+            _angleToPotentialExitNodes = new Dictionary<float, List<ExitNodeGlobal>>();
+            _chamberList = _config.GetAllChambers();
+            foreach (ChamberGlobal chamber in _chamberList)
+            {
+                foreach(ExitNodeGlobal node in chamber.ExitNodes)
+                {
+                    node.AssignTo(chamber);
+                    _angleToPotentialExitNodes[node.OutgoingPathAngle] ??= new List<ExitNodeGlobal>();
+                    _angleToPotentialExitNodes[node.OutgoingPathAngle].Add(node);
+                }
+            }
         }
         
-        public GlobalMap GenerateMap()
+        public GlobalMapBase GenerateMap()
         {
+            GlobalMapBase map = new GlobalMap();
+            Init();
+            
+            // 1. Make the grid, slightly overestimating size
             int mapWidth = _mapDimensions.x;
             int mapHeight = _mapDimensions.y;
+            float gridSize = _config.MinDistance / (float)Math.Sqrt(2);
+            float gridWidthUnrounded = mapWidth / gridSize;
+            float gridHeightUnrounded = mapHeight / gridSize;
+            int gridWidth = (int)Math.Ceiling(gridWidthUnrounded);
+            int gridHeight = (int)Math.Ceiling(gridHeightUnrounded);
+            ChamberGrid grid = new ChamberGrid(gridWidth, gridHeight, gridSize);
             
-            ChamberGrid grid = new ChamberGrid();
+            // 2. Place the first chamber
+            ChamberGlobal firstChamber = _config.GetRandomChamber();
+            VectorInt topLeft = new VectorInt(0, 0);
+            VectorInt botRight = new VectorInt(mapWidth, mapHeight);
+            VectorInt randomPos = VectorInt.RandomInRect(topLeft, botRight);
+            HashSet<VectorInt> cachedGridOverlaps = new HashSet<VectorInt>();
+            List<(ChamberGlobal chamber, int nodeIndex)> active = new List<(ChamberGlobal chamber, int nodeIndex)>(); 
             
+            // 2.1. Add chamber (and all its exit nodes) to active list helper
+            void AddChamber(ChamberGlobal chamber, VectorInt pos)
+            {
+                ChamberGlobal chamberInstance = chamber.Instantiate(pos);
+                int exitNodeCount = chamberInstance.ExitNodes.Count;
+                for (int i = 0; i < exitNodeCount; i++)
+                {
+                    active.Add((chamberInstance, i));
+                }
+                map.AddChamber(chamberInstance);
+            }
+            
+            // 2.2. practice using the ChamberGrid class (canPlace should always return true)
+            bool canPlace = grid.CanPlace(firstChamber, randomPos, _config.MinDistance, out cachedGridOverlaps);
+            if (canPlace)
+            {
+                grid.Place(cachedGridOverlaps, firstChamber, randomPos);
+                AddChamber(firstChamber, randomPos);
+            }
+            else
+            {
+                throw new Exception("The first chamber could not be placed for some reason.");
+            }
+            
+            // 3. The loop
+            while (active.Count > 0)
+            {
+                int randomIndex = _random.Next(0, active.Count);
+                ChamberGlobal activeChamber = active[randomIndex].chamber;
+
+                bool found = false;
+                for (int tries = 0; tries < _config.MaxPlacementTries; tries++)
+                {
+                    float theta = (float)(_random.NextDouble() * 360);
+                    float radius = _random.Next(_config.MinDistance, 2 * _config.MinDistance);
+                    ExitNodeGlobal activeNode = activeChamber.GetRandomExitNode(_random);
+                    float oppAngle = GeometryUtility.GetOppositeAngle(theta);
+                    ExitNodeGlobal oppositeNode = _config.GetRandomExitNode(oppAngle, _random);
+                    if (oppositeNode == null) continue;
+                    ChamberGlobal oppositeChamber = oppositeNode.ParentChamber;
+                    VectorInt thisPos = activeChamber.Position.Value; // TODO: all this crap
+                }
+            }
+
+            return map;
         }
+        
+        
+   
 
         
         struct ChamberGrid
         {
+            private int _width;
+            private int _height;
             private List<ChamberGlobal>[,] _chamberGrid;
             private List<ChamberGlobal> _allChambers;
-            private int _gridSize;
+            private float _gridSize;
             
-            public ChamberGrid(int gridW, int gridH, int gridSize)
+            public ChamberGrid(int gridW, int gridH, float gridSize)
             {
+                _width = gridW;
+                _height = gridH;
                 _chamberGrid = new List<ChamberGlobal>[gridW, gridH];
                 for (int x = 0; x < gridW; x++)
                 {
@@ -48,23 +136,36 @@ namespace ChamberGen
 
             public HashSet<VectorInt> Place(ChamberGlobal chamber, VectorInt pos)
             {
-                return Place(GetGridIntersections(chamber, pos), chamber, pos);
+                return Place(GetGridOverlaps(chamber, pos), chamber, pos);
             }
 
             public HashSet<VectorInt> Place(HashSet<VectorInt> gridIntersections, ChamberGlobal chamber, VectorInt pos)
             {
                 foreach (VectorInt gridCoord in gridIntersections)
                 {
-                    _chamberGrid[gridCoord.x, gridCoord.y].Add(chamber);
+                    TryAssignToGrid(gridCoord, chamber);
                 }
                 _allChambers.Add(chamber);
                 chamber.Position = pos;
                 return gridIntersections;
             }
-            
-            public bool CanPlace(ChamberGlobal chamber, VectorInt pos, float minDistance)
+
+            private bool TryAssignToGrid(VectorInt gridCoord, ChamberGlobal chamber)
             {
-                HashSet<VectorInt> chamberGridOverlaps = GetGridIntersections(chamber, pos);
+                int x = gridCoord.x;
+                int y = gridCoord.y;
+                if (x < 0 || x >= _width || y < 0 || y >= _height)
+                {
+                    return false;
+                }
+                _chamberGrid[gridCoord.x, gridCoord.y].Add(chamber);
+                return true;
+            }
+            
+            public bool CanPlace(ChamberGlobal chamber, VectorInt pos, float minDistance, out HashSet<VectorInt> gridIntersections)
+            {
+                HashSet<VectorInt> chamberGridOverlaps = GetGridOverlaps(chamber, pos);
+                gridIntersections = chamberGridOverlaps;
                 HashSet<ChamberGlobal> nearbyChambers = GetNearbyChambers(chamberGridOverlaps);
                 foreach (ChamberGlobal nearby in nearbyChambers)
                 {
@@ -113,7 +214,7 @@ namespace ChamberGen
 
 
             // this will overestimate, but this is fine
-            public HashSet<VectorInt> GetGridIntersections(ChamberGlobal chamber, VectorInt pos)
+            public HashSet<VectorInt> GetGridOverlaps(ChamberGlobal chamber, VectorInt pos)
             {
                 HashSet<VectorInt> gridCoords = new HashSet<VectorInt>();
                 int radius = chamber.Radius;
@@ -157,8 +258,10 @@ namespace ChamberGen
 
             private VectorInt Coord2PosCenter(VectorInt coord)
             {
-                return coord * _gridSize + new VectorInt(_gridSize/2, _gridSize/2);
+                return coord * _gridSize + new VectorInt((int)_gridSize/2, (int)_gridSize/2);
             }
         }
+        
+        
     }
 }

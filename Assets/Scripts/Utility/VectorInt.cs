@@ -38,6 +38,16 @@ namespace Utility
             return new VectorInt(v.x * scalar, v.y * scalar);
         }
 
+        public static VectorInt operator *(VectorInt v, float scalar)
+        {
+            return new VectorInt((int)(v.x * scalar), (int)(v.y * scalar));
+        }
+
+        public static VectorInt operator *(float scalar, VectorInt v)
+        {
+            return new VectorInt((int)(v.x * scalar), (int)(v.y * scalar));
+        }
+        
         public float Magnitude()
         {
             return (float)Math.Sqrt(x * x + y * y);
@@ -63,6 +73,14 @@ namespace Utility
             return (float)Math.Atan2(y - v.y, x - v.x);
         }
 
+        public static VectorInt RandomInRect(VectorInt min, VectorInt max)
+        {
+            Random random = new Random();
+            int x = random.Next(min.x, max.x);
+            int y = random.Next(min.y, max.y);
+            return new VectorInt(x, y);
+        }
+
         public static VectorInt operator /(VectorInt v, int scalar)
         {
             if (scalar == 0)
@@ -70,6 +88,15 @@ namespace Utility
                 throw new DivideByZeroException("Division by zero is not allowed.");
             }
             return new VectorInt(v.x / scalar, v.y / scalar);
+        }
+        
+        public static VectorInt operator /(VectorInt v, float scalar)
+        {
+            if (scalar == 0)
+            {
+                throw new DivideByZeroException("Division by zero is not allowed.");
+            }
+            return new VectorInt((int)(v.x / scalar), (int)(v.y / scalar));
         }
 
         public override string ToString()

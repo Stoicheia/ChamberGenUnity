@@ -11,5 +11,10 @@ namespace Utility
             circleDistance = Math.Max(0, circleDistance);
             return circleDistance;
         }
+
+        public static float GetOppositeAngle(float angle)
+        {
+            return (360 - angle) % 360;
+        }
     }
 }
