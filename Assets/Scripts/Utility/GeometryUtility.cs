@@ -12,9 +12,9 @@ namespace Utility
             return circleDistance;
         }
 
-        public static float GetOppositeAngle(float angle)
+        public static int GetOppositeAngle(int angle)
         {
-            return (360 - angle) % 360;
+            return (angle + 180) % 360;
         }
     }
 }

@@ -13,6 +13,22 @@ namespace Utility
             this.y = y;
         }
 
+        public VectorFloat(double x, double y)
+        {
+            this.x = (float)x;
+            this.y = (float)y;
+        }
+
+        public VectorInt ToVectorInt()
+        {
+            return new VectorInt((int)x, (int)y);
+        }
+
+        public static VectorFloat Polar(float radius, float angle)
+        {
+            return new VectorFloat(Math.Cos(angle), Math.Sin(angle)) * radius;
+        }
+        
         public static VectorFloat operator +(VectorFloat v1, VectorFloat v2)
         {
             return new VectorFloat(v1.x + v2.x, v1.y + v2.y);

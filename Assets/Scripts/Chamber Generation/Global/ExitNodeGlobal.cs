@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Utility;
 
 namespace ChamberGen
 {
@@ -7,19 +8,27 @@ namespace ChamberGen
     {
         public float Distance01 { get; set; }
         public float AngleRad { get; set; }
-        public float OutgoingPathAngle { get; set; }
+        public int OutgoingPathAngleDegrees { get; set; }
         public ChamberGlobal ParentChamber { get; set; }
-        public ChamberGlobal Connection { get; set; }
+        public ExitNodeGlobal Connection { get; set; }
+        public bool HasConnection => Connection != null;
 
-        public ExitNodeGlobal(float distance01, float angleRad, float outgoingPathAngle)
+        public ExitNodeGlobal(float distance01, float angleRad, int outgoingPathAngleDegrees)
         {
             Distance01 = distance01;
             AngleRad = angleRad;
-            OutgoingPathAngle = outgoingPathAngle;
+            OutgoingPathAngleDegrees = outgoingPathAngleDegrees;
             Connection = null;
         }
 
-        public void ConnectTo(ChamberGlobal to)
+        public ExitNodeGlobal Instantiate(ChamberGlobal parentChamber)
+        {
+            ExitNodeGlobal instance = new ExitNodeGlobal(Distance01, AngleRad, OutgoingPathAngleDegrees);
+            instance.ParentChamber = parentChamber;
+            return instance;
+        }
+
+        public void ConnectTo(ExitNodeGlobal to)
         {
             Connection = to;
         }
@@ -33,5 +42,16 @@ namespace ChamberGen
         {
             ParentChamber = parent;
         }
+        
+        public VectorInt GetExitNodePosRelative()
+        {
+            return ParentChamber.GetExitNodePosRelative(this);
+        }
+        
+        public VectorInt GetExitNodePosOnMap()
+        {
+            return ParentChamber.GetExitNodePosOnMap(this);
+        }
+
     }
 }

@@ -34,7 +34,7 @@ namespace ChamberGen
             return _chamberPool.GetRandom();
         }
 
-        public ExitNodeGlobal GetRandomExitNode(float angle, Random random)
+        public ExitNodeGlobal GetRandomExitNode(int angle, Random random)
         {
             List<ChamberGlobal> allChambers = GetAllChambers();
             List<ChamberGlobal> validChambers = new List<ChamberGlobal>();

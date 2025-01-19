@@ -30,15 +30,15 @@ namespace ChamberGen
                 foreach(ExitNodeGlobal node in chamber.ExitNodes)
                 {
                     node.AssignTo(chamber);
-                    _angleToPotentialExitNodes[node.OutgoingPathAngle] ??= new List<ExitNodeGlobal>();
-                    _angleToPotentialExitNodes[node.OutgoingPathAngle].Add(node);
+                    _angleToPotentialExitNodes[node.OutgoingPathAngleDegrees] ??= new List<ExitNodeGlobal>();
+                    _angleToPotentialExitNodes[node.OutgoingPathAngleDegrees].Add(node);
                 }
             }
         }
         
         public GlobalMapBase GenerateMap()
         {
-            GlobalMapBase map = new GlobalMap();
+            GlobalMapBase map = new GlobalMap(_mapDimensions.x, _mapDimensions.y);
             Init();
             
             // 1. Make the grid, slightly overestimating size
@@ -71,18 +71,20 @@ namespace ChamberGen
                 map.AddChamber(chamberInstance);
             }
             
-            // 2.2. practice using the ChamberGrid class (canPlace should always return true)
-            bool canPlace = grid.CanPlace(firstChamber, randomPos, _config.MinDistance, out cachedGridOverlaps);
-            if (canPlace)
+            // 2.2. practice using the ChamberGrid class (canPlace should always return true
             {
-                grid.Place(cachedGridOverlaps, firstChamber, randomPos);
-                AddChamber(firstChamber, randomPos);
+                bool canPlace = grid.CanPlace(firstChamber, randomPos, _config.MinDistance, out cachedGridOverlaps);
+                if (canPlace)
+                {
+                    grid.Place(cachedGridOverlaps, firstChamber, randomPos);
+                    AddChamber(firstChamber, randomPos);
+                }
+                else
+                {
+                    throw new Exception("The first chamber could not be placed for some reason.");
+                }
             }
-            else
-            {
-                throw new Exception("The first chamber could not be placed for some reason.");
-            }
-            
+
             // 3. The loop
             while (active.Count > 0)
             {
@@ -92,23 +94,34 @@ namespace ChamberGen
                 bool found = false;
                 for (int tries = 0; tries < _config.MaxPlacementTries; tries++)
                 {
-                    float theta = (float)(_random.NextDouble() * 360);
                     float radius = _random.Next(_config.MinDistance, 2 * _config.MinDistance);
                     ExitNodeGlobal activeNode = activeChamber.GetRandomExitNode(_random);
-                    float oppAngle = GeometryUtility.GetOppositeAngle(theta);
+                    int theta = activeNode.OutgoingPathAngleDegrees;
+                    int oppAngle = GeometryUtility.GetOppositeAngle(theta);
                     ExitNodeGlobal oppositeNode = _config.GetRandomExitNode(oppAngle, _random);
                     if (oppositeNode == null) continue;
                     ChamberGlobal oppositeChamber = oppositeNode.ParentChamber;
-                    VectorInt thisPos = activeChamber.Position.Value; // TODO: all this crap
+                    VectorInt activeMapPos = activeNode.GetExitNodePosOnMap();
+                    VectorInt oppositeRelPos = oppositeNode.GetExitNodePosRelative();
+                    VectorInt offset = VectorFloat.Polar(radius, theta).ToVectorInt();
+                        
+                    VectorInt oppositeChamberPos = activeMapPos + offset - oppositeRelPos;
+                    bool canPlace = grid.CanPlace(oppositeChamber, oppositeChamberPos, _config.MinDistance, out cachedGridOverlaps);
+                    if (canPlace)
+                    {
+                        ChamberGlobal newChamberInstance = oppositeChamber.Instantiate(oppositeChamberPos);
+                        grid.Place(newChamberInstance, oppositeChamberPos);
+                        activeChamber.ConnectToNode(activeNode, oppositeNode);
+                        newChamberInstance.ConnectToNode(oppositeNode, activeNode);
+                        AddChamber(newChamberInstance, oppositeChamberPos);
+                    }
+                    
+                    // set found equals true, remove from active list, and terminate.
                 }
             }
 
             return map;
         }
-        
-        
-   
-
         
         struct ChamberGrid
         {

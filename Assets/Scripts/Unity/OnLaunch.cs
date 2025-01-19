@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEngine;
+using Visualisation;
 
 namespace Unity
 {
@@ -10,8 +11,7 @@ namespace Unity
         [SerializeField] private int h;
         private void Start()
         {
-            MapDrawer mapDrawer = new MapDrawer();
-            mapDrawer.DrawMap(_bmpPathDest, w, h);
+            DrawTests.DrawTest1(_bmpPathDest);
         }
     }
 }

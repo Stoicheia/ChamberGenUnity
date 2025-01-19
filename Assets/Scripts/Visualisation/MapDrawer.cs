@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Numerics;
+using ChamberGen;
+using Utility;
 
 
 public class MapDrawer
@@ -11,7 +13,33 @@ public class MapDrawer
     private Graphics _graphics;
     private Brush _brush;
     private Pen _pen;
-    public void DrawMap(string pathDest, int width, int height)
+
+    public void DrawMap(GlobalMap map, string pathDest, int scale = 1)
+    {
+        int height = map.Height;
+        int width = map.Width;
+        List<ChamberGlobal> chambers = map.Chambers;
+        using (Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppPArgb)) 
+        using (_graphics = Graphics.FromImage(bmp)) {
+            _graphics.Clear(Color.Black);
+            _brush = new SolidBrush(Color.White);
+            _pen = new Pen(Color.Green, 2);
+
+            foreach (ChamberGlobal chamber in chambers)
+            {
+                DrawCircle(chamber.X, chamber.Y, chamber.Radius);
+                List<LineInt> outgoingLines = chamber.GetOutgoingLines();
+                foreach (LineInt line in outgoingLines)
+                {
+                    DrawLine(line);
+                }
+            }
+            
+            bmp.Save(pathDest, ImageFormat.Bmp);
+        }
+    }
+    
+    public void DrawMapTest(string pathDest, int width, int height)
     {
         
         using (Bitmap src = new Bitmap(width, height))
@@ -28,5 +56,10 @@ public class MapDrawer
     private void DrawCircle(int centerX, int centerY, int radius)
     {
         _graphics.FillEllipse(_brush, new Rectangle(centerX-radius, centerY-radius, 2*radius, 2*radius));
+    }
+
+    private void DrawLine(LineInt line)
+    {
+        _graphics.DrawLine(_pen, line.X1, line.Y1, line.X2, line.Y2);
     }
 }
