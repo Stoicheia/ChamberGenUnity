@@ -28,7 +28,7 @@ namespace ChamberGen
             return instance;
         }
 
-        public void ConnectTo(ExitNodeGlobal to)
+        public void SetConnection(ExitNodeGlobal to)
         {
             Connection = to;
         }

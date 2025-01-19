@@ -56,12 +56,12 @@ namespace Utility
 
         public static VectorFloat operator *(VectorFloat v, float scalar)
         {
-            return new VectorFloat((int)(v.x * scalar), (int)(v.y * scalar));
+            return new VectorFloat((v.x * scalar), (v.y * scalar));
         }
 
         public static VectorFloat operator *(float scalar, VectorFloat v)
         {
-            return new VectorFloat((int)(v.x * scalar), (int)(v.y * scalar));
+            return new VectorFloat((v.x * scalar), (v.y * scalar));
         }
         
         public float Magnitude()

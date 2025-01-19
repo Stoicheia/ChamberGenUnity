@@ -19,13 +19,25 @@ namespace ChamberGen
             Radius = radius;
         }
 
+        public void SetExitNodes(List<ExitNodeGlobal> exitNodes)
+        {
+            if (!IsPlaced)
+            {
+                ExitNodes = exitNodes;
+            }
+            else
+            {
+                ExitNodes = exitNodes.Select(x => x.Instantiate(parentChamber: this)).ToList();
+            }
+        }
+
         // prototype design pattern (similar to Unity prefabs)
         public ChamberGlobal Instantiate(VectorInt position)
         {
             ChamberGlobal instance = new ChamberGlobal(Radius);
             instance.Position = position;
             instance.Radius = Radius;
-            instance.ExitNodes = ExitNodes.Select(x => x.Instantiate(parentChamber: this)).ToList();
+            instance.ExitNodes = ExitNodes.Select(x => x.Instantiate(parentChamber: instance)).ToList();
             return instance;
         }
 
@@ -53,8 +65,8 @@ namespace ChamberGen
             if (otherExitNodeIndex.HasValue)
             {
                 ExitNodeGlobal otherExitNode = toChamber.ExitNodes[otherExitNodeIndex.Value];
-                otherExitNode.ConnectTo(thisExitNode);
-                thisExitNode.ConnectTo(otherExitNode);
+                otherExitNode.SetConnection(thisExitNode);
+                thisExitNode.SetConnection(otherExitNode);
                 return true;
             }
 
@@ -64,7 +76,8 @@ namespace ChamberGen
         public bool ConnectToNode(ExitNodeGlobal node, ExitNodeGlobal other)
         {
             if (node.ParentChamber != this) return false;
-            other.ConnectTo(node);
+            node.SetConnection(other);
+            other.SetConnection(node);
             return true;
         }
         
@@ -76,8 +89,8 @@ namespace ChamberGen
             if (otherExitNodeIndex.HasValue)
             {
                 ExitNodeGlobal otherExitNode = toChamber.ExitNodes[otherExitNodeIndex.Value];
-                otherExitNode.ConnectTo(node);
-                node.ConnectTo(otherExitNode);
+                otherExitNode.SetConnection(node);
+                node.SetConnection(otherExitNode);
                 return true;
             }
 
