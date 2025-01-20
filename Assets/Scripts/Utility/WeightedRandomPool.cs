@@ -16,6 +16,20 @@ namespace Utility
             _allItems = _pool.Select(x => x.Item).ToList();
             _random = new Random();
         }
+
+        public WeightedRandomPool(List<T> equalWeightItems)
+        {
+            _pool = equalWeightItems.Select(x => new WeightedRandomPoolEntry<T>(x, 1)).ToList();
+            _allItems = _pool.Select(x => x.Item).ToList();
+            _random = new Random();
+        }
+        
+        public WeightedRandomPool(Dictionary<T, float> itemsByWeight)
+        {
+            _pool = itemsByWeight.Select(x => new WeightedRandomPoolEntry<T>(x.Key, x.Value)).ToList();
+            _allItems = _pool.Select(x => x.Item).ToList();
+            _random = new Random();
+        }
         
         public T GetRandom(Random rng = null)
         {

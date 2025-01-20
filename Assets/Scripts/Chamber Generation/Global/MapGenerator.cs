@@ -30,15 +30,16 @@ namespace ChamberGen
                 foreach(ExitNodeGlobal node in chamber.ExitNodes)
                 {
                     node.AssignTo(chamber);
-                    _angleToPotentialExitNodes[node.OutgoingPathAngleDegrees] ??= new List<ExitNodeGlobal>();
+                    if(!_angleToPotentialExitNodes.ContainsKey(node.OutgoingPathAngleDegrees))
+                        _angleToPotentialExitNodes[node.OutgoingPathAngleDegrees] = new List<ExitNodeGlobal>();
                     _angleToPotentialExitNodes[node.OutgoingPathAngleDegrees].Add(node);
                 }
             }
         }
         
-        public GlobalMapBase GenerateMap()
+        public GlobalMap GenerateMap()
         {
-            GlobalMapBase map = new GlobalMap(_mapDimensions.x, _mapDimensions.y);
+            GlobalMap map = new GlobalMap(_mapDimensions.x, _mapDimensions.y);
             Init();
             
             // 1. Make the grid, slightly overestimating size
@@ -49,15 +50,15 @@ namespace ChamberGen
             float gridHeightUnrounded = mapHeight / gridSize;
             int gridWidth = (int)Math.Ceiling(gridWidthUnrounded);
             int gridHeight = (int)Math.Ceiling(gridHeightUnrounded);
-            ChamberGrid grid = new ChamberGrid(gridWidth, gridHeight, gridSize);
+            ChamberGrid grid = new ChamberGrid(gridWidth, gridHeight, gridSize, _mapDimensions);
             
             // 2. Place the first chamber
             ChamberGlobal firstChamber = _config.GetRandomChamber();
-            VectorInt topLeft = new VectorInt(0, 0);
-            VectorInt botRight = new VectorInt(mapWidth, mapHeight);
+            VectorInt topLeft = new VectorInt(firstChamber.Radius, firstChamber.Radius);
+            VectorInt botRight = new VectorInt(mapWidth - firstChamber.Radius, mapHeight - firstChamber.Radius);
             VectorInt randomPos = VectorInt.RandomInRect(topLeft, botRight);
             HashSet<VectorInt> cachedGridOverlaps = new HashSet<VectorInt>();
-            List<(ChamberGlobal chamber, int nodeIndex)> active = new List<(ChamberGlobal chamber, int nodeIndex)>(); 
+            List<ExitNodeGlobal> active = new List<ExitNodeGlobal>(); 
             
             // 2.1. Add chamber (and all its exit nodes) to active list helper
             void AddChamber(ChamberGlobal chamber, VectorInt pos)
@@ -66,7 +67,7 @@ namespace ChamberGen
                 int exitNodeCount = chamberInstance.ExitNodes.Count;
                 for (int i = 0; i < exitNodeCount; i++)
                 {
-                    active.Add((chamberInstance, i));
+                    active.Add(chamberInstance.GetExitNodeByIndex(i));
                 }
                 map.AddChamber(chamberInstance);
             }
@@ -89,34 +90,42 @@ namespace ChamberGen
             while (active.Count > 0)
             {
                 int randomIndex = _random.Next(0, active.Count);
-                ChamberGlobal activeChamber = active[randomIndex].chamber;
+                ChamberGlobal activeChamber = active[randomIndex].ParentChamber;
+                ExitNodeGlobal activeNode = activeChamber.GetRandomExitNode(_random);
 
                 bool found = false;
                 for (int tries = 0; tries < _config.MaxPlacementTries; tries++)
                 {
                     float radius = _random.Next(_config.MinDistance, 2 * _config.MinDistance);
-                    ExitNodeGlobal activeNode = activeChamber.GetRandomExitNode(_random);
+                    
                     int theta = activeNode.OutgoingPathAngleDegrees;
+                    float thetaRad = activeNode.OutgoingPathAngleDegrees * (float)Math.PI / 180;
                     int oppAngle = GeometryUtility.GetOppositeAngle(theta);
                     ExitNodeGlobal oppositeNode = _config.GetRandomExitNode(oppAngle, _random);
                     if (oppositeNode == null) continue;
                     ChamberGlobal oppositeChamber = oppositeNode.ParentChamber;
                     VectorInt activeMapPos = activeNode.GetExitNodePosOnMap();
                     VectorInt oppositeRelPos = oppositeNode.GetExitNodePosRelative();
-                    VectorInt offset = VectorFloat.Polar(radius, theta).ToVectorInt();
+                    VectorInt offset = VectorFloat.Polar(radius, thetaRad).ToVectorInt();
                         
                     VectorInt oppositeChamberPos = activeMapPos + offset - oppositeRelPos;
                     bool canPlace = grid.CanPlace(oppositeChamber, oppositeChamberPos, _config.MinDistance, out cachedGridOverlaps);
                     if (canPlace)
                     {
                         ChamberGlobal newChamberInstance = oppositeChamber.Instantiate(oppositeChamberPos);
+                        ExitNodeGlobal oppNodeInstance = newChamberInstance.GetExitNodeByIndex(oppositeNode.IndexOf);
+
                         grid.Place(newChamberInstance, oppositeChamberPos);
-                        activeChamber.ConnectToNode(activeNode, oppositeNode);
-                        newChamberInstance.ConnectToNode(oppositeNode, activeNode);
+                        activeChamber.ConnectToNode(activeNode, oppNodeInstance);
                         AddChamber(newChamberInstance, oppositeChamberPos);
+                        found = true;
+                        break;
                     }
-                    
-                    // set found equals true, remove from active list, and terminate.
+                }
+                
+                if (!found)
+                {
+                    active.Remove(activeNode);
                 }
             }
 
@@ -130,11 +139,13 @@ namespace ChamberGen
             private List<ChamberGlobal>[,] _chamberGrid;
             private List<ChamberGlobal> _allChambers;
             private float _gridSize;
+            private VectorInt _mapDimensions;
             
-            public ChamberGrid(int gridW, int gridH, float gridSize)
+            public ChamberGrid(int gridW, int gridH, float gridSize, VectorInt mapDimensions)
             {
                 _width = gridW;
                 _height = gridH;
+                _mapDimensions = mapDimensions;
                 _chamberGrid = new List<ChamberGlobal>[gridW, gridH];
                 for (int x = 0; x < gridW; x++)
                 {
@@ -177,6 +188,12 @@ namespace ChamberGen
             
             public bool CanPlace(ChamberGlobal chamber, VectorInt pos, float minDistance, out HashSet<VectorInt> gridIntersections)
             {
+                if (pos.x < chamber.Radius || pos.y < chamber.Radius || pos.x >= _mapDimensions.x - chamber.Radius || pos.y >= _mapDimensions.y - chamber.Radius)
+                {
+                    gridIntersections = new HashSet<VectorInt>();
+                    return false;
+                }
+                
                 HashSet<VectorInt> chamberGridOverlaps = GetGridOverlaps(chamber, pos);
                 gridIntersections = chamberGridOverlaps;
                 HashSet<ChamberGlobal> nearbyChambers = GetNearbyChambers(chamberGridOverlaps);
@@ -199,12 +216,21 @@ namespace ChamberGen
                 HashSet<ChamberGlobal> nearbyChambers = new HashSet<ChamberGlobal>();
                 foreach (VectorInt coord in nearbyCoords)
                 {
-                    foreach (ChamberGlobal chamber in _chamberGrid[coord.x, coord.y])
+                    foreach (ChamberGlobal chamber in GetChambersAtCoord(coord))
                     {
                         nearbyChambers.Add(chamber);
                     }
                 }
                 return nearbyChambers;
+            }
+
+            private List<ChamberGlobal> GetChambersAtCoord(VectorInt coord)
+            {
+                if (coord.x < 0 || coord.y < 0 || coord.x >= _width || coord.y >= _height)
+                {
+                    return new List<ChamberGlobal>();
+                }
+                return _chamberGrid[coord.x, coord.y];
             }
 
             private HashSet<VectorInt> GetNearbyGridCoords(HashSet<VectorInt> gridCoords)

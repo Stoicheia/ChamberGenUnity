@@ -29,6 +29,11 @@ namespace ChamberGen
             {
                 ExitNodes = exitNodes.Select(x => x.Instantiate(parentChamber: this)).ToList();
             }
+
+            for (int i = 0; i < exitNodes.Count; i++)
+            {
+                exitNodes[i].IndexOf = i;
+            }
         }
 
         // prototype design pattern (similar to Unity prefabs)
@@ -38,6 +43,10 @@ namespace ChamberGen
             instance.Position = position;
             instance.Radius = Radius;
             instance.ExitNodes = ExitNodes.Select(x => x.Instantiate(parentChamber: instance)).ToList();
+            for (int i = 0; i < instance.ExitNodes.Count; i++)
+            {
+                instance.ExitNodes[i].IndexOf = i;
+            }
             return instance;
         }
 
@@ -75,6 +84,10 @@ namespace ChamberGen
 
         public bool ConnectToNode(ExitNodeGlobal node, ExitNodeGlobal other)
         {
+            if (!other.ParentChamber.IsPlaced)
+            {
+                throw new Exception("Can only connect nodes of placed chambers");
+            }
             if (node.ParentChamber != this) return false;
             node.SetConnection(other);
             other.SetConnection(node);

@@ -11,7 +11,7 @@ namespace Unity
         [SerializeField] private int h;*/
         private void Start()
         {
-            DrawTests.DrawTest1(_bmpPathDest);
+            DrawTests.DrawTestFull(_bmpPathDest);
         }
     }
 }

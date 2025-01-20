@@ -6,6 +6,7 @@ namespace ChamberGen
 {
     public class ExitNodeGlobal
     {
+        public int IndexOf { get; set; }
         public float Distance01 { get; set; }
         public float AngleRad { get; set; }
         public int OutgoingPathAngleDegrees { get; set; }
